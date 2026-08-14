@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>你被骗了</title>
+    <style>
+        /* 彻底清零所有边距，没有任何UI元素 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        .video-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+        }
+
+        /* 
+            视频元素：
+            - 无controls → 无控制栏
+            - 不全屏 → max-width/max-height 限制，保持原始比例
+            - 没有任何状态栏、提示文字
+        */
+        video {
+            display: block;
+            max-width: 100%;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            background: #000000;
+            outline: none;
+            cursor: pointer;  /* 仅提示用户点击开启声音，不会显示控制栏 */
+        }
+    </style>
+</head>
+<body>
+<div class="video-wrapper">
+    <video id="loopVideo" 
+           src="You-ve-been-deceived./w.mp4" 
+           loop
+           muted
+           playsinline
+           disableRemotePlayback
+           autoplay>
+        您的浏览器不支持
+    </video>
+</div>
+
+<script>
+    (function() {
+        const video = document.getElementById('loopVideo');
+        if (!video) return;
+
+        // ========== 1. 禁止空格键暂停视频 ==========
+        function blockSpace(event) {
+            if (event.code === 'Space' || event.key === ' ' || event.keyCode === 32) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        }
+        window.addEventListener('keydown', blockSpace);
+        video.addEventListener('keydown', blockSpace);
+
+        // ========== 2. 禁止全屏（双击/右键/全屏事件） ==========
+        // 禁止双击全屏
+        video.addEventListener('dblclick', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        });
+        
+        // 禁止右键菜单（避免出现全屏选项）
+        video.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            return false;
+        });
+        
+        // 监听全屏变化：一旦进入全屏立即退出
+        function exitFullscreenIfNeeded() {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+        }
+        document.addEventListener('fullscreenchange', exitFullscreenIfNeeded);
+        document.addEventListener('webkitfullscreenchange', exitFullscreenIfNeeded);
+        
+        // 禁用视频的全屏API方法
+        if (video.requestFullscreen) video.requestFullscreen = null;
+        if (video.webkitRequestFullscreen) video.webkitRequestFullscreen = null;
+        
+        // ========== 3. 强制确保循环播放 ==========
+        video.loop = true;
+        video.addEventListener('ended', function() {
+            video.loop = true;
+            video.play().catch(function() {});
+        });
+        
+        // ========== 4. 声音处理：静音自动播放 + 点击任意位置开启声音 ==========
+        // 由于浏览器策略，有声自动播放被禁止。最稳定的方案：
+        // 默认静音自动循环播放（保证打开后视频立即播放）
+        // 用户点击页面任意位置后，取消静音，实现有声音
+        let soundActivated = false;
+        
+        function activateSound() {
+            if (soundActivated) return;
+            soundActivated = true;
+            
+            // 取消静音
+            video.muted = false;
+            // 确保视频正在播放（如果因某些原因暂停则恢复）
+            if (video.paused) {
+                video.play().catch(function() {});
+            }
+            // 音量确保为最大
+            video.volume = 1;
+            
+            // 移除事件监听，只激活一次
+            document.removeEventListener('click', activateSound);
+            document.removeEventListener('touchstart', activateSound);
+            video.removeEventListener('click', activateSound);
+        }
+        
+        // 监听用户点击以开启声音
+        document.addEventListener('click', activateSound);
+        document.addEventListener('touchstart', activateSound);
+        video.addEventListener('click', activateSound);
+        
+        // 确保视频开始播放（静音状态下自动播放）
+        video.play().catch(function(e) {
+            // 极少数情况自动播放失败，再次尝试
+            setTimeout(function() {
+                video.play().catch(function() {});
+            }, 100);
+        });
+        
+        // 视频加载错误时不显示任何UI（静默处理）
+        video.addEventListener('error', function() {
+            // 不显示任何错误提示，保持界面干净
+            console.warn('请确保当前目录下存在 w.mp4 文件');
+        });
+        
+        // 禁止画中画
+        video.disablePictureInPicture = true;
+        
+        // 确保页面无滚动条
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+        
+        console.log('视频已启动：静音自动循环播放，点击任意位置开启声音。无控制栏/无状态/不全屏/空格不暂停');
+    })();
+</script>
+</body>
+</html>
